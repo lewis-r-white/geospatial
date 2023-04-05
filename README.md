@@ -1,7 +1,7 @@
 # geospatial
 
 
-Week	Lecture topics and lab topics
+Week/Date | Lecture topics and lab topics
 
 1 (9/26)	Course overview & intro to spatial data models. Coordinate reference systems, map making basics.
 
