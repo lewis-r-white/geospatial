@@ -1,0 +1,383 @@
+---
+title: 'EDS 223: assignment 1'
+author: 'Lewis White'
+date: "2022-09-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## introduction
+
+The following exercises are modified from [Chapter 9 of Geocomputation with R by Rovin Lovelace](https://geocompr.robinlovelace.net/adv-map.html). Each question lists the total number of points. The breakdown of points can be found at the end of each instruction in parentheses. A general grading rubric can be found on the [course website](https://ryoliver.github.io/EDS_223_spatial_analysis/assignments.html).
+
+
+**Due by midnight Saturday 2022-10-08**
+
+## prerequisites
+
+```{r load, include=TRUE, message=FALSE, warning=FALSE}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+library(tmap)
+library(grid)
+library(leaflet)
+library(tidyverse)
+```
+
+These exercises rely on a new data object based on the **world** and **worldbank_df** datasets from the \*\*spData\* package.
+
+```{r include=TRUE}
+
+#load world dataset, filter to continent of interest, join 
+
+africa = world |>  
+  filter(continent == "Africa", !is.na(iso_a2)) |>   #filter to africa
+  left_join(worldbank_df, by = "iso_a2") |>  #join worldbank info to world dataset
+  dplyr::select(name, subregion, gdpPercap, HDI, pop_growth) |> #select vars of interest
+  st_transform("+proj=aea +lat_1=20 +lat_2=-23 +lat_0=0 +lon_0=25")  #adjust type of geom
+
+```
+
+We will also use the **zion** and **nlcd** datasets from the **spDataLarge** package.
+
+```{r include=TRUE}
+zion = st_read((system.file("vector/zion.gpkg", package = "spDataLarge")))
+
+#loading the raster data 
+data(nlcd, package = "spDataLarge")
+force(nlcd)
+```
+
+## question 1
+
+##### 10 points
+
+Create a map showing the geographic distribution of the Human Development Index (HDI) across Africa.\
+- use both base graphics (hint: use **plot()**) and **tmap**) (4)\
+- name two advantages of each based on the experience (3) - name three other mapping packages and an advantage of each (3)
+
+```{r include=TRUE}
+#USING NATIVE PLOT
+plot(africa["HDI"])
+
+plot(africa) #without indexing, this plots each of the variables
+
+
+# USING TMAP
+tm_shape(africa) + 
+  tm_fill(col = "HDI",
+          title = "HDI Score")
+```
+
+**Advantages of Native `Plot()` function**
+1. The `plot()` function was wildly quick and easy to implement. Taking away the HDI index, I was able to generate a plot for each column in the data set by just typing "plot(africa)". If I was doing exploratory data analysis and just wanted a quick look into the data, `plot()` seems like the perfect option. 
+
+2. `plot()` doesn't require an additional R package. This would make it pretty reproducible, allowing anyone with R and access to the data to complete the analysis. 
+
+**Advantages of using tmap**
+
+1. tmap allows for much flexibility in its map making. It's fairly easy to customize maps to one's ideal aesthetic. Also, you can use `tmap_mode()` to create interactive maps, a feature which isn't available using `plot()`. 
+
+2. tmap allows you to work with a wider range of spatial classes.
+
+
+**3 Other Mapping Packages**
+**googleway**
+The googleway package allows you to access Google Maps APIs to retrieve data and plot maps. A benefit of this package is its ability to let you work with a ton of data generated from Google Maps. 
+
+**cartogram**
+The cartoram package allows you to create customizable cartograms, a map type that represents the mapped area by distorting the geometry of the feature itself (e.g. size of the geometry might depend on another numeric variable).
+
+**globe**
+The globe package allows you to plot 3D (and 2D ~ but that isn't quite as exciting) of the earth. 
+
+## question 2
+
+##### 20 points
+
+Extend the **tmap** created for question 1 so the legend has three bins: "high" (HDI above 0.7), "medium" (HDI between 0.55 and 0.7), and "low" (HDI below 0.55). (5)\
+- change the legend title (5)\
+- change the class labels (5)\
+- change the color palette (5)
+
+
+```{r}
+tm_shape(africa) +
+  tm_fill(col = "HDI",                                    #color depends on HDI
+          breaks = c(0, 0.55, 0.7, Inf),                   #setting up the breaks
+          labels = c("Low HDI", "Medium HDI", "High HDI"),  #specifying labels for breaks
+          title = "HDI Score",                          
+          palette = "viridis") +                          
+  tm_layout(
+    title = "HDI Ratings Across African Countries",
+    title.size = 0.5,
+    frame = FALSE,
+    scale = 1,
+    bg.color = "lightblue")   #background color
+  
+
+#save the above plot
+HDI_plot <- tm_shape(africa) +
+  tm_fill(col = "HDI",
+          breaks = c(0, 0.55, 0.7, Inf),
+          labels = c("Low HDI", "Medium HDI", "High HDI"),
+          title = "HDI Score",
+          palette = "viridis") +
+  tm_borders() +
+  tm_layout(
+    title = "HDI Ratings Across African Countries", 
+    title.position = c("LEFT", "TOP"),
+    title.size = 0.5,
+    frame = TRUE,
+    scale = 1,
+    bg.color = "lightblue")
+
+```
+
+
+THIS IS THE WAY I ORIGINALLY DID IT BEFORE LEARNING ABOUT THE LABELS OPTION IN TM_FILL
+```{r include=TRUE}
+# #define the HDI breaks
+# breaks <- c(0, 0.55, 0.7, Inf) #how do i make this so each is mutually exclusive?
+# 
+# 
+# #added a new column tospecify low, medium and high HDI
+# africa_catigorical_HDI <- africa %>%
+#   mutate(hdi_cat = ifelse(HDI < 0.55, "Low",
+#                           ifelse(HDI >= 0.55 & HDI < 0.7, "Medium",
+#                                  ifelse(HDI >= 0.7, "High",
+#                                         ifelse(HDI == NA, "Missing")))))
+# 
+# #change the hdi column to be a factor and specify the levels
+# africa_factor_HDI <- africa_catigorical_HDI %>%
+#   mutate(hdi_cat = as.factor(hdi_cat)) %>%
+#   mutate(hdi_cat = factor(hdi_cat, levels = c("Low", "Medium", "High")))
+#                       
+# ## another way of coding this  
+#                       #africa_categorical_HDI$HDI_cat <- factor(africa_categorical_HDI,                           #levels = c("Low", "Medium", "High"))
+# 
+# #make the plot
+# tm_shape(africa_factor_HDI) + 
+#   tm_fill(col = "hdi_cat",
+#           title = "HDI Score",
+#           palette = "Pastel1") +
+#   tm_borders() +
+#   tm_layout(
+#     title = "HDI Ratings Across African Countries", ##This doesn't really work
+#     title.position = c("RIGHT", "TOP"),
+#     title.size = 0.5,
+#     frame = FALSE,
+#     scale = 1,
+#     bg.color = "lightblue")
+# 
+# #save the chart as a new object
+# hdi_plot <- tm_shape(africa_factor_HDI) + 
+#   tm_fill(col = "hdi_cat",
+#           title = "HDI Score",
+#           palette = "Pastel1") +
+#   tm_borders() +
+#   tm_layout(
+#     title = "HDI Ratings Across African Countries", ##This doesn't really work
+#     title.position = c("RIGHT", "TOP"),
+#     title.size = 0.5,
+#     frame = TRUE,
+#     scale = 1,
+#     bg.color = "lightblue")
+```
+
+## question 3
+
+##### 20 points
+
+Represent Africa's subregions on the map. (5)\
+- change the color palette (5)\
+- change the legend title (5)\
+- combine this map with the map from question 2 into a single plot (5)
+
+```{r include=TRUE}
+
+#plot the subregions
+tm_shape(africa) + 
+  tm_fill(col = "subregion",
+          title = "Subregion",
+          palette = "Accent") +
+  tm_borders() +
+  tm_layout(
+    title = "African Subregions", 
+    title.position = c("LEFT", "TOP"),
+    title.size = 0.5,
+    frame = FALSE,
+    scale = 1,
+    bg.color = "lightblue")
+
+#save the map as a new object
+subregion_plot <- tm_shape(africa) + 
+  tm_fill(col = "subregion",
+          title = "Subregion",
+          palette = "Accent") +
+  tm_borders()  +
+  tm_layout(
+    title = "African Subregions", 
+    title.position = c("LEFT", "TOP"),
+    title.size = 0.5,
+    frame = TRUE,
+    scale = 1,
+    bg.color = "lightblue")
+```
+
+```{r}
+#plot the subregion and hdi plots together in one plot
+tmap_arrange(subregion_plot, HDI_plot)
+```
+
+
+## question 4
+
+##### 30 points
+
+Create a land cover map of Zion National Park (5)\
+- change the default colors to match your perception of land cover categories (5)\
+- move the map legend outside of the map to improve readability (5)\
+- add a scale bar and north arrow and change the position of both to improve the maps aesthetics (5)\
+- add the park boundaries on top of the land cover map (5)\
+- add an inset of Zion's location in the context of the state of Utah (5)\
+- hint: an object representing Utah can be subset from the **us_states** dataset)
+
+```{r include=TRUE}
+#creating the base outline of zion in it's appropriate location
+map_zion <- tm_shape(zion) +  
+  tm_borders(lwd = 2, col = "black")
+
+#specifying a vector of colors for the palette 
+zion_palette <- c('Water' = "#081baa",
+                        'Developed' = "#656872",
+                        'Barren' = "#cac091",
+                        'Forest' = "#216f0c",
+                        'Shrubland' = "#83a550",
+                        'Herbaceous' = "#f5c8f9",
+                        'Cultivated' = "#aa4908",
+                        'Wetlands' = "#16ced4")
+
+map_zion +
+  tm_shape(nlcd) +
+  tm_raster(alpha = 0.7,
+            palette = zion_palette) +
+  tm_layout(legend.outside = TRUE) +
+  tm_compass(type = "4star", 
+             position = c("right", "top")) +
+  tm_scale_bar(breaks = c(0, 5, 10),
+               position = c("left", "bottom"))
+  
+
+zion_palette_map <- map_zion +
+  tm_shape(nlcd) +
+  tm_raster(alpha = 0.7,
+            palette = zion_palette) +
+  tm_layout(legend.outside = TRUE) +
+  tm_compass(type = "4star",
+             position = c("right", "top")) +
+  tm_scale_bar(breaks = c(0, 5, 10),
+               position = c("left", "bottom"))
+
+```
+
+
+```{r}
+## Filter to Utah
+utah <- us_states %>%
+  filter(NAME == "Utah")
+
+utah_region <- st_bbox(zion, #creates a box around zion
+                       crs = st_crs(nlcd)) %>%  #specify coordinate reference system
+  st_as_sfc() 
+
+zion_inset_map <- tm_shape(nlcd) + 
+  tm_raster(style = "cont", palette = zion_palette, legend.show = TRUE) +
+  tm_scale_bar(position = c("left", "bottom")) +
+  tm_layout(legend.outside = TRUE) +
+  tm_shape(zion) +
+  tm_borders(lwd = 2,
+             col = "red")
+
+utah_map <- tm_shape(utah) + tm_polygons() +
+  tm_shape(utah_region) + tm_borders(lwd = 2, col = "red")
+
+zion_inset_map
+print(utah_map, vp = viewport(0.8, 0.2, width = 0.3, height = 0.3))
+```
+
+
+## question 5
+
+##### 20 points
+
+Create an interactive map of the world (10)\
+- include a legend (5)\
+- change the color palette (5)\
+- bonus: use **leaflet** instead of **tmap** (2)
+
+```{r include=TRUE}
+tmap_mode("view") #changes the mode to be interactive!
+
+tm_shape(world) +
+  tm_fill(col = 'lifeExp',
+          palette = "viridis") +
+  tm_borders() +
+  tm_layout(legend.outside =  TRUE)
+
+```
+
+```{r}
+#LEAFLET
+
+library(maptools)
+library(leaflet)
+library(rgeos)
+
+pal <- colorNumeric("viridis",
+                    domain = world$lifeExp)
+
+labels <- sprintf(    #get the labels to work interactively, although I'm not sure why it's saying "people per square mile" rather than "life expectancy." 
+  "<strong>%s</strong><br/>%g people / mi<sup>2</sup>",
+  world$name_long, world$lifeExp
+) %>% lapply(htmltools::HTML)   
+
+
+leaflet(world) %>%
+  addPolygons(
+    fillColor = ~pal(world$lifeExp), 
+    stroke = TRUE, 
+    color = 'Steelblue', 
+    weight = 1.5,
+    highlightOptions = highlightOptions(
+    weight = 5),
+    label = labels) %>%
+  addLegend(pal = pal, values = ~lifeExp, opacity = 0.7, title = NULL,
+  position = "bottomright")
+```
+
+
+## bonus question
+
+##### 5 points
+
+Create THE WORST map! AKA a map that breaks all of the rules of legibility/clarity, yet somehow still passes for a map. We'll vote on the best worst map (worst worst map?) in class.
+
+```{r include=TRUE}
+##BAD MAP
+tmap_mode("plot")
+
+tm_shape(world) + 
+  tm_fill(col = "name_long") +
+  tm_borders(lwd = 10) +
+  tm_layout(title = "cOoL GrAPh Yo",
+            title.size = 2,
+            title.bg.color = "green")
+
+```
